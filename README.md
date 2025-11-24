@@ -36,17 +36,17 @@ npm install
 
 ### ✅ **3. Configurar variables de entorno**
 
-Crear un archivo **.env** en la carpeta `backend/`:
+Crear un archivo **.env** en la carpeta `SorteoApi/`:
 
 ```
-MONGO_URI=mongodb://localhost:27017/sorteoFIFA
+MONGO_URI=mongodb+srv://Username2024:macias1234@clusterpoke.ndj2yqj.mongodb.net/
 PORT=4000
 ```
 
 ### ✅ **4. Poblar la base de datos con los 32 equipos**
 
 ```sh
-node seed/seedTeams.js
+node db/db.js
 ```
 
 ### Resultado:
