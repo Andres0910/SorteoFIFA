@@ -1,7 +1,4 @@
-Aquí tienes un **README.md completo, profesional y listo para colocar en tu repositorio GitHub**.
-Solo copia y pega en un archivo llamado **README.md** en la raíz del proyecto.
 
----
 
 # 🏆 **Simulador de Sorteo FIFA World Cup**
 
