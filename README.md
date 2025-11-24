@@ -25,7 +25,7 @@ Incluye API REST, base de datos poblada con selecciones nacionales y un frontend
 
 ```sh
 git clone https://github.com/tu_usuario/simulador-sorteo-fifa.git
-cd simulador-sorteo-fifa/backend
+cd SorteoFIFA/SorteoApi
 ```
 
 ### ✅ **2. Instalar dependencias**
@@ -144,13 +144,13 @@ Realiza el sorteo de grupos y devuelve 8 grupos (A–H), cada uno con 4 equipos.
   }
 }
 
-
+```
 # 🌐 **Frontend**
 
 El cliente web se encuentra en la carpeta:
 
 ```
-/frontend
+/frontendsorteo
 ```
 
 E incluye:
