@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simulador Sorteo FIFA</title>
+
+  <!-- Bootstrap CSS (CDN) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Custom styles -->
+  <style href="./css/style.css"></style>
+   
+</head>
+<body>
+  <div class="app-container px-3">
+
+    <header class="d-flex flex-column align-items-start mb-4">
+      <h1>Simulador Sorteo FIFA</h1>
+      <p class="text-muted mb-0">Cliente web. Lista equipos y sorteo.</p>
+    </header>
+
+    <main>
+      <div class="row g-3">
+        <!-- Left: Teams management -->
+        <section class="col-12 col-lg-7">
+          <div class="card p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h5 class="mb-0">Equipos</h5>
+              <div>
+                <button id="refreshBtn" class="btn btn-outline-secondary btn-sm me-2">Refrescar</button>
+                <button id="openCreateBtn" class="btn btn-primary btn-sm">+ Nuevo equipo</button>
+              </div>
+            </div>
+
+            <div id="teamsArea">
+              <div class="placeholder">Cargando equipos...</div>
+            </div>
+          </div>
+
+          <div class="card p-3">
+            <h6 class="mb-3">Acciones</h6>
+            <div class="d-flex flex-wrap gap-2">
+              <button id="drawBtn" class="btn btn-success">Ejecutar sorteo</button>
+              <button id="clearGroupsBtn" class="btn btn-outline-secondary">Limpiar grupos</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right: Resultados del sorteo -->
+        <aside class="col-12 col-lg-5">
+          <div class="card p-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h5 class="mb-0">Grupos</h5>
+              <small class="text-muted" id="drawTimestamp"></small>
+            </div>
+
+            <div id="groupsArea" class="groups-grid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px;">
+              <div class="placeholder">Aún no se ha realizado el sorteo</div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <footer class="mt-4 text-center text-muted small">
+      Hecho con ❤️ — Frontend sin frameworks. Esperando backend en <code>/api/teams</code> y <code>/api/draw</code>.
+    </footer>
+  </div>
+
+  <!-- Bootstrap JS (for modal) + Popper -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Modals (create/edit) -->
+  <div class="modal fade" id="teamModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <form id="teamForm" class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="teamModalTitle">Nuevo equipo</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="teamId" />
+          <div class="mb-3">
+            <label for="teamName" class="form-label">Nombre</label>
+            <input type="text" id="teamName" class="form-control" required />
+          </div>
+          <div class="mb-3">
+            <label for="teamPot" class="form-label">Pot (1-4)</label>
+            <select id="teamPot" class="form-select" required>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4" selected>4</option>
+            </select>
+          </div>
+          <div class="mb-0">
+            <label for="teamConf" class="form-label">Confederación</label>
+            <select id="teamConf" class="form-select" required>
+              <option value="UEFA">UEFA</option>
+              <option value="CONMEBOL">CONMEBOL</option>
+              <option value="CONCACAF">CONCACAF</option>
+              <option value="AFC">AFC</option>
+              <option value="CAF">CAF</option>
+              <option value="OFC">OFC</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="saveTeamBtn">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- JavaScript: fetch + DOM logic (async/await) -->
+  <script>
+    (function () {
+      // CONFIGURABLE: la base URL del backend
+      const BASE = 'http://localhost:4000'; 
+      const API_TEAMS = BASE + '/api/teams';
+      const API_DRAW  = BASE + '/api/draw';
+
+      // UI elements
+      const teamsArea = document.getElementById('teamsArea');
+      const groupsArea = document.getElementById('groupsArea');
+      const drawTimestamp = document.getElementById('drawTimestamp');
+      const refreshBtn = document.getElementById('refreshBtn');
+      const openCreateBtn = document.getElementById('openCreateBtn');
+      const drawBtn = document.getElementById('drawBtn');
+      const clearGroupsBtn = document.getElementById('clearGroupsBtn');
+
+      // modal elements (Bootstrap)
+      const teamModalEl = document.getElementById('teamModal');
+      const teamModal = new bootstrap.Modal(teamModalEl);
+      const teamForm = document.getElementById('teamForm');
+      const teamModalTitle = document.getElementById('teamModalTitle');
+      const teamIdInput = document.getElementById('teamId');
+      const teamNameInput = document.getElementById('teamName');
+      const teamPotInput = document.getElementById('teamPot');
+      const teamConfInput = document.getElementById('teamConf');
+
+      // store retrieved teams
+      let teams = [];
+
+      // UTIL: safe fetch wrapper
+      async function safeFetch(url, options = {}) {
+        try {
+          const res = await fetch(url, options);
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(res.status + ' ' + res.statusText + ' - ' + text);
+          }
+          // try parse json, otherwise return text
+          const ct = res.headers.get('content-type') || '';
+          if (ct.includes('application/json')) return await res.json();
+          return await res.text();
+        } catch (err) {
+          console.error('Fetch error:', err);
+          throw err;
+        }
+      }
+
+      /* -------------------- TEAMS CRUD -------------------- */
+
+      // GET /api/teams
+      async function loadTeams() {
+        teamsArea.innerHTML = '<div class="placeholder">Cargando equipos...</div>';
+        try {
+          const data = await safeFetch(API_TEAMS);
+          // esperar que el backend devuelva array de equipos
+          teams = Array.isArray(data) ? data : (data.teams || []);
+          renderTeamsList();
+        } catch (err) {
+          teamsArea.innerHTML = '<div class="alert alert-danger">No fue posible cargar equipos. Revisa el backend.</div>';
+        }
+      }
+
+      
+      // Render teams table
+      function renderTeamsList() {
+        if (!teams.length) {
+          teamsArea.innerHTML = '<div class="placeholder">No hay equipos. Crea uno nuevo.</div>';
+          return;
+        }
+        const table = document.createElement('table');
+        table.className = 'table teams-table mb-0';
+        table.innerHTML = `
+          <thead class="table-light">
+            <tr>
+              <th>Nombre</th>
+              <th>Pot</th>
+              <th>Confederación</th>
+              <th style="width:1%"></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        `;
+        const tbody = table.querySelector('tbody');
+        teams.forEach((t, idx) => {
+          // If backend doesn't provide id, use index as fallback
+          const id = t.id ?? t._id ?? idx;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><strong>${escapeHtml(t.name)}</strong></td>
+            <td>Pot ${escapeHtml(String(t.pot ?? ''))}</td>
+            <td><span class="conf-badge">${escapeHtml(t.confederation ?? '')}</span></td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-primary me-1 btn-edit" data-id="${id}">Editar</button>
+              <button class="btn btn-sm btn-outline-danger btn-delete" data-id="${id}">Eliminar</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+        teamsArea.innerHTML = '';
+        teamsArea.appendChild(table);
+
+        // attach events
+        teamsArea.querySelectorAll('.btn-edit').forEach(btn => {
+          btn.addEventListener('click', onEditClick);
+        });
+        teamsArea.querySelectorAll('.btn-delete').forEach(btn => {
+          btn.addEventListener('click', onDeleteClick);
+        });
+      }
+
+      // POST /api/teams
+      async function createTeam(payload) {
+        try {
+          const res = await safeFetch(API_TEAMS, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          // backend should return created object or updated list
+          await loadTeams();
+          return res;
+        } catch (err) {
+          alert('Error al crear equipo: ' + (err.message || err));
+          throw err;
+        }
+      }
+
+      // PUT /api/teams/:id
+      async function updateTeam(id, payload) {
+        const url = `${API_TEAMS}/${encodeURIComponent(id)}`;
+        try {
+          const res = await safeFetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          await loadTeams();
+          return res;
+        } catch (err) {
+          alert('Error al actualizar equipo: ' + (err.message || err));
+          throw err;
+        }
+      }
+
+      // DELETE /api/teams/:id
+      async function deleteTeam(id) {
+        if (!confirm('¿Eliminar equipo? Esta acción es irreversible.')) return;
+        const url = `${API_TEAMS}/${encodeURIComponent(id)}`;
+        try {
+          await safeFetch(url, { method: 'DELETE' });
+          await loadTeams();
+        } catch (err) {
+          alert('Error al eliminar: ' + (err.message || err));
+        }
+      }
+
+      /* -------------------- EVENTS -------------------- */
+      refreshBtn.addEventListener('click', loadTeams);
+      openCreateBtn.addEventListener('click', () => {
+        teamModalTitle.textContent = 'Nuevo equipo';
+        teamIdInput.value = '';
+        teamNameInput.value = '';
+        teamPotInput.value = '4';
+        teamConfInput.value = 'UEFA';
+        teamModal.show();
+      });
+
+      // Save (create or update)
+      teamForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = teamIdInput.value;
+        const payload = {
+          name: teamNameInput.value.trim(),
+          pot: Number(teamPotInput.value),
+          confederation: teamConfInput.value
+        };
+        // Basic validation
+        if (!payload.name) { alert('Nombre requerido'); return; }
+        try {
+          if (id) {
+            await updateTeam(id, payload);
+          } else {
+            await createTeam(payload);
+          }
+          teamModal.hide();
+        } catch (err) {
+          // errors handled in functions
+        }
+      });
+
+      // Edit button handler
+      function onEditClick(e) {
+        const id = e.currentTarget.dataset.id;
+        const team = findTeamById(id);
+        if (!team) {
+          alert('Equipo no encontrado (backend puede no retornar id). Refresca la lista.');
+          return;
+        }
+        teamModalTitle.textContent = 'Editar equipo';
+        teamIdInput.value = id;
+        teamNameInput.value = team.name ?? '';
+        teamPotInput.value = String(team.pot ?? '4');
+        teamConfInput.value = team.confederation ?? 'UEFA';
+        teamModal.show();
+      }
+
+      // Delete button handler
+      function onDeleteClick(e) {
+        const id = e.currentTarget.dataset.id;
+        const team = findTeamById(id);
+        const name = team ? team.name : id;
+        if (confirm(`¿Deseas eliminar a "${name}"?`)) {
+          deleteTeam(id);
+        }
+      }
+
+      function findTeamById(id) {
+        // try match by id, _id or index fallback
+        return teams.find((t, idx) => {
+          if (t.id && String(t.id) === String(id)) return true;
+          if (t._id && String(t._id) === String(id)) return true;
+          if (String(idx) === String(id)) return true;
+          return false;
+        });
+      }
+
+      /* -------------------- DRAW -------------------- */
+
+      // Run the draw (GET /api/draw)
+      drawBtn.addEventListener('click', async () => {
+        drawBtn.disabled = true;
+        drawBtn.textContent = 'Sorteando...';
+        groupsArea.innerHTML = '<div class="placeholder">Generando sorteo...</div>';
+        try {
+          const payload = await safeFetch(API_DRAW);
+          renderGroups(payload.groups || payload);
+          drawTimestamp.textContent = new Date().toLocaleString();
+        } catch (err) {
+          groupsArea.innerHTML = '<div class="alert alert-danger">Error al ejecutar el sorteo. Revisa el backend.</div>';
+        }
+        drawBtn.disabled = false;
+        drawBtn.textContent = 'Ejecutar sorteo';
+      });
+
+      clearGroupsBtn.addEventListener('click', () => {
+        groupsArea.innerHTML = '<div class="placeholder">Aún no se ha realizado el sorteo</div>';
+        drawTimestamp.textContent = '';
+      });
+
+      // Render groups visually
+      function renderGroups(groups) {
+        // groups expected as { A: [team,...], B: [...], ... }
+        if (!groups || Object.keys(groups).length === 0) {
+          groupsArea.innerHTML = '<div class="placeholder">No hay grupos para mostrar</div>';
+          return;
+        }
+        groupsArea.innerHTML = '';
+        for (const g of Object.keys(groups)) {
+          const arr = groups[g] || [];
+          const card = document.createElement('div');
+          card.className = 'group-card card p-2';
+          const inner = document.createElement('div');
+          inner.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="group-title">Grupo ${escapeHtml(g)}</div>
+              <small class="text-muted">(${arr.length} equipos)</small>
+            </div>
+            <ul class="list-unstyled mb-0"></ul>
+          `;
+          const ul = inner.querySelector('ul');
+          // show each team with conf badge and pot
+          arr.forEach(t => {
+            const li = document.createElement('li');
+            li.style.padding = '6px 0';
+            li.innerHTML = `<strong>${escapeHtml(t.name ?? t.team ?? '')}</strong>
+              <div class="small text-muted">Pot ${escapeHtml(String(t.pot ?? t.team?.pot ?? ''))} — <span class="conf-badge">${escapeHtml(t.confederation ?? t.team?.confederation ?? '')}</span></div>`;
+            ul.appendChild(li);
+          });
+          card.appendChild(inner);
+          groupsArea.appendChild(card);
+        }
+      }
+
+      /* -------------------- Helpers -------------------- */
+
+      // Very small helper to escape HTML
+      function escapeHtml(s) {
+        if (s === null || s === undefined) return '';
+        return String(s)
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;');
+      }
+
+      // Initial load
+      (function init() {
+        // If your backend runs in different origin (e.g. http://localhost:4000),
+        // set BASE variable above to 'http://localhost:4000' or serve this file from same origin.
+        loadTeams();
+      })();
+
+      // Expose for debugging (optional)
+      window._sorteoClient = { loadTeams, renderGroups, teams };
+    })();
+  </script>
+</body>
+</html>
+
