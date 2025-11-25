@@ -36,7 +36,7 @@ npm install
 
 ### ✅ **3. Configurar variables de entorno**
 
-Crear un archivo **.env** en la carpeta `SorteoApi/`:
+Crear un archivo **.env** en la carpeta `backendsorteo/`:
 
 ```
 MONGO_URI=mongodb+srv://Username2024:macias1234@clusterpoke.ndj2yqj.mongodb.net/
