@@ -1,7 +1,4 @@
-Aquí tienes un **README.md completo, profesional y listo para colocar en tu repositorio GitHub**.
-Solo copia y pega en un archivo llamado **README.md** en la raíz del proyecto.
 
----
 
 # 🏆 **Simulador de Sorteo FIFA World Cup**
 
@@ -28,7 +25,7 @@ Incluye API REST, base de datos poblada con selecciones nacionales y un frontend
 
 ```sh
 git clone https://github.com/tu_usuario/simulador-sorteo-fifa.git
-cd simulador-sorteo-fifa/backend
+cd SorteoFIFA/SorteoApi
 ```
 
 ### ✅ **2. Instalar dependencias**
@@ -39,17 +36,17 @@ npm install
 
 ### ✅ **3. Configurar variables de entorno**
 
-Crear un archivo **.env** en la carpeta `backend/`:
+Crear un archivo **.env** en la carpeta `SorteoApi/`:
 
 ```
-MONGO_URI=mongodb://localhost:27017/sorteoFIFA
+MONGO_URI=mongodb+srv://Username2024:macias1234@clusterpoke.ndj2yqj.mongodb.net/
 PORT=4000
 ```
 
 ### ✅ **4. Poblar la base de datos con los 32 equipos**
 
 ```sh
-node seed/seedTeams.js
+node db/db.js
 ```
 
 ### Resultado:
@@ -147,13 +144,13 @@ Realiza el sorteo de grupos y devuelve 8 grupos (A–H), cada uno con 4 equipos.
   }
 }
 
-
+```
 # 🌐 **Frontend**
 
 El cliente web se encuentra en la carpeta:
 
 ```
-/frontend
+/frontendsorteo
 ```
 
 E incluye:
