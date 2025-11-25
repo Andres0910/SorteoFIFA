@@ -25,7 +25,7 @@ Incluye API REST, base de datos poblada con selecciones nacionales y un frontend
 
 ```sh
 git clone https://github.com/tu_usuario/simulador-sorteo-fifa.git
-cd SorteoFIFA/SorteoApi
+cd SorteoFIFA/backendsorteo
 ```
 
 ### ✅ **2. Instalar dependencias**
